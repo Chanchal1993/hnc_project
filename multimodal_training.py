@@ -146,9 +146,9 @@ class Trainer:
 
 if __name__ == "__main__":
     # Data paths
-    pet_dir = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/PET"
-    ct_dir = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/CT"
-    csv_path = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/hnc_train_processed.csv"
+    pet_dir = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/PET"
+    ct_dir = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/CT"
+    csv_path = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/csv/hnc_train_sample_preprocessed.csv"
 
     # Pretraining Phase
     pretrain_dataset = MultimodalDataset(pet_dir, ct_dir, csv_path)

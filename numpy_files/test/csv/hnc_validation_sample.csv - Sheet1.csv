@@ -1,0 +1,2 @@
+Patient #,Sex,Age,Primary Site,T-stage,N-stage,M-stage,TNM group stage,HPV status,Time – diagnosis to diagnosis (days),Time – diagnosis to PET (days),Time – diagnosis to CT sim (days),Time – diagnosis to start treatment (days),Time – diagnosis to end treatment (days),Therapy,Surgery,Time – diagnosis to last follow-up(days),Locoregional,Distant,Death,Time – diagnosis to LR (days),Time – diagnosis to DM (days),Time – diagnosis to Death (days)
+Patient3,M,75,Larynx,T3,N2b,M0,stage IVA,N/A,0,49,51,65,113,chemo radiation,0,1098,1,1,1,441,441,1098
