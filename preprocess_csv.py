@@ -3,9 +3,9 @@ import os
 from sklearn.preprocessing import LabelEncoder
 
 # Paths
-input_csv = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/csv/hnc_train_sample.csv"
-output_dir = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/csv/"
-output_csv = os.path.join(output_dir, "hnc_train_sample_preprocessed.csv")
+input_csv = "/Users/chanchalm/HNCmodel_new/numpy_files/test/csv/hnc_validation_sample.csv"
+output_dir = "/Users/chanchalm/HNCmodel_new/numpy_files/test/csv"
+output_csv = os.path.join(output_dir, "hnc_test_sample_preprocessed.csv")
 
 def bin_categories(series, min_freq=0.05):
     """

@@ -122,7 +122,7 @@ class MultimodalModel(nn.Module):
         return predictions.squeeze(-1)  # (batch_size,)
 
 class Trainer:
-    def __init__(self, model, dataloader, optimizer, criterion, device, warmup_epochs=10, total_epochs=300):
+    def __init__(self, model, dataloader, optimizer, criterion, device, warmup_epochs=10, total_epochs=30):
         self.model = model
         self.dataloader = dataloader
         self.optimizer = optimizer
@@ -238,9 +238,9 @@ class Trainer:
 
 if __name__ == "__main__":
     # Data paths
-    pet_dir = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/PET"
-    ct_dir = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/CT"
-    csv_path = "/Users/varun.t1/Documents/vat_base/hnc_project/numpy_files/train/csv/hnc_train_sample_preprocessed.csv"
+    pet_dir = "//Users/chanchalm/HNCmodel_new/numpy_files/train/PET"
+    ct_dir = "/Users/chanchalm/HNCmodel_new/numpy_files/train/CT"
+    csv_path = "/Users/chanchalm/HNCmodel_new/numpy_files/train/csv/hnc_train_sample_preprocessed.csv"
 
     # Pretraining Phase
     pretrain_dataset = MultimodalDataset(pet_dir, ct_dir, csv_path)
@@ -275,6 +275,12 @@ if __name__ == "__main__":
     pretrainer = Trainer(pretrain_model, pretrain_dataloader, optimizer, criterion, device, warmup_epochs=0, total_epochs=1)
     pretrainer.train()
 
+     # Save the pretrained model
+    # Save the pretrained model
+    torch.save(pretrain_model.state_dict(), "pretrained_model.pth")
+    print("Pretrained model saved as pretrained_model.pth")
+
+
     # Downstream Phase
     downstream_dataloader = DataLoader(pretrain_dataset, batch_size=256, shuffle=True)
     downstream_model = MultimodalModel(mae_model, fusion_model, text_embedder, qformer)
@@ -283,3 +289,9 @@ if __name__ == "__main__":
     downstream_optimizer = optim.AdamW(downstream_model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=5e-2)
     downstream_trainer = Trainer(downstream_model, downstream_dataloader, downstream_optimizer, criterion, device)
     downstream_trainer.train()
+
+    # Save the downstream model
+    # Save the downstream model
+    torch.save(downstream_model.state_dict(), "downstream_model.pth")
+    print("Downstream model saved as downstream_model.pth")
+
