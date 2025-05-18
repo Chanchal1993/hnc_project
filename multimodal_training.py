@@ -62,6 +62,8 @@ class MultimodalModel(nn.Module):
         self.qformer = qformer
 
     def forward(self, pet, ct, text):
+        print("PET input shape:", pet.shape)
+        print("CT input shape:", ct.shape)
         pet_features = self.mae.extract_features(pet)
         ct_features = self.mae.extract_features(ct)
 
@@ -88,6 +90,7 @@ class Trainer:
         epoch_loss = 0.0
 
         for pet, ct, text in self.dataloader:
+            
             pet, ct, text = pet.to(self.device), ct.to(self.device), text.to(self.device)
             self.optimizer.zero_grad()
             outputs = self.model(pet, ct, text)
@@ -145,7 +148,7 @@ if __name__ == "__main__":
     # Data paths
     pet_dir = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/PET"
     ct_dir = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/CT"
-    csv_path = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/hnc_train_sample_preprocessed.csv"
+    csv_path = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/hnc_train_processed.csv"
 
     # Pretraining Phase
     pretrain_dataset = MultimodalDataset(pet_dir, ct_dir, csv_path)

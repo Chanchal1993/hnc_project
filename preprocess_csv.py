@@ -1,39 +1,30 @@
 import pandas as pd
-import os
 
-# Paths
-input_csv = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/hnc_train_sample.csv"
-output_dir = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/"
-output_csv = os.path.join(output_dir, "hnc_train_sample_preprocessed.csv")
+csv_path = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/hnc_train_sample.csv"
+data = pd.read_csv(csv_path)
 
-# Load the dataset
-data = pd.read_csv(input_csv)
+# Clean column names
+data.columns = data.columns.str.strip()
 
-# Display column types to identify categorical columns
-print("Data types before processing:\n", data.dtypes)
+# Extract Patient IDs (exclude from preprocessing)
+patient_ids = data['Patient #']
+features = data.drop(columns=['Patient #'])
 
-# Define mappings for known categorical columns
-categorical_mappings = {
-    'gender': {'M': 0, 'F': 1},
-    # Add more mappings if known, e.g.
-    # 'smoking_status': {'never': 0, 'former': 1, 'current': 2},
-}
+# Convert only string categorical columns (dtype object and values are strings)
+for col in features.columns:
+    if features[col].dtype == 'object':
+        # Check if the column contains strings (not numbers or mixed types)
+        if features[col].apply(lambda x: isinstance(x, str)).all():
+            features[col] = features[col].astype('category').cat.codes
+            print(f"Converted column '{col}' to categorical codes.")
 
-# Apply the mappings
-for col, mapping in categorical_mappings.items():
-    if col in data.columns:
-        data[col] = data[col].map(mapping)
+# Fill missing numeric values
+features = features.fillna(features.mean())
 
-# Identify remaining categorical columns (object type)
-remaining_categorical_cols = data.select_dtypes(include=['object']).columns.tolist()
-print(f"Remaining categorical columns: {remaining_categorical_cols}")
+# Recombine Patient IDs
+processed_data = pd.concat([patient_ids, features], axis=1)
 
-# Apply one-hot encoding to remaining categorical columns
-data = pd.get_dummies(data, columns=remaining_categorical_cols)
+output_path = "/Users/chanchalm/Documents/hnc_dataset/numpy_files/train/csv/hnc_train_processed.csv"
+processed_data.to_csv(output_path, index=False)
 
-# Ensure the output directory exists
-os.makedirs(output_dir, exist_ok=True)
-
-# Save preprocessed data
-data.to_csv(output_csv, index=False)
-print(f"Preprocessed data saved to {output_csv}")
+print(f"Preprocessed data saved to {output_path}")

@@ -43,6 +43,9 @@ class MaskedAutoencoderViT(nn.Module):
         self.norm_pix_loss = norm_pix_loss
 
         self.initialize_weights()
+    def extract_features(self, imgs):
+        latent, _, _ = self.forward_encoder(imgs, mask_ratio=0.0)
+        return latent  # latent shape: (batch_size, num_patches + 1, embed_dim)
 
     def initialize_weights(self):
         # Initialize sinusoidal positional embeddings
