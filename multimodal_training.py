@@ -177,13 +177,28 @@ class Trainer:
         all_times = np.array(all_times)
         all_events = np.array(all_events)
 
+        # Print data distribution for debugging
+        print(f"\nData Distribution:")
+        print(f"Number of samples: {len(all_times)}")
+        print(f"Number of events: {np.sum(all_events)}")
+        print(f"Unique times: {np.unique(all_times)}")
+        print(f"Unique events: {np.unique(all_events)}")
+
         # Ensure all arrays have the same shape
         assert len(all_preds) == len(all_times) == len(all_events), \
             f"Shape mismatch: preds={len(all_preds)}, times={len(all_times)}, events={len(all_events)}"
 
-        # Using negative predictions since higher values indicate higher risk
-        c_index = concordance_index(all_times, -all_preds, all_events)
-        return c_index
+        try:
+            # Using negative predictions since higher values indicate higher risk
+            c_index = concordance_index(all_times, -all_preds, all_events)
+            return c_index
+        except ZeroDivisionError as e:
+            print("\nWarning: Could not calculate C-index due to insufficient data variation.")
+            print("This usually happens when:")
+            print("1. All events are the same (all 0 or all 1)")
+            print("2. All times are the same")
+            print("3. The dataset is too small to form valid pairs")
+            return 0.5  # Return random performance as baseline
 
     def train(self):
         for epoch in range(self.total_epochs):
