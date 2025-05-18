@@ -1,0 +1,13 @@
+Column,Original_Value,Encoded_Value
+Sex,M,0
+Primary Site,Larynx,0
+Primary Site,Nasopharynx,1
+T-stage,T1,0
+T-stage,T3,1
+N-stage,N0,0
+N-stage,N1,1
+M-stage,M0,0
+TNM group stage,stage IIB,0
+TNM group stage,stage III,1
+HPV status,-,0
+Therapy,chemo radiation,0

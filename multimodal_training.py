@@ -51,8 +51,8 @@ class MultimodalDataset(Dataset):
         ct_data = np.transpose(ct_data, (2, 0, 1))    # [1, height, width]
 
         # Convert to torch tensors for resizing
-        pet_data = torch.from_numpy(pet_data).float()
-        ct_data = torch.from_numpy(ct_data).float()
+        pet_data = torch.from_numpy(pet_data).float().requires_grad_(True)
+        ct_data = torch.from_numpy(ct_data).float().requires_grad_(True)
 
         # Resize to 128x128
         pet_data = self.resize(pet_data)  # [1, 128, 128]
@@ -72,7 +72,7 @@ class MultimodalDataset(Dataset):
         return (
             pet_data,  # [1, 128, 128]
             ct_data,   # [1, 128, 128]
-            torch.tensor(text_features, dtype=torch.float32)
+            torch.tensor(text_features, dtype=torch.float32, requires_grad=True)
         )
 
 
@@ -80,6 +80,10 @@ class MultimodalModel(nn.Module):
     def __init__(self, mae_model, fusion_model, text_embedder, qformer):
         super(MultimodalModel, self).__init__()
         self.mae = mae_model
+        # Ensure MAE parameters require gradients
+        for param in self.mae.parameters():
+            param.requires_grad = True
+            
         self.fusion = fusion_model
         self.text_embedder = text_embedder
         self.qformer = qformer
@@ -92,8 +96,14 @@ class MultimodalModel(nn.Module):
         )
 
     def forward(self, pet, ct, text):
+        # Ensure inputs require gradients
+        pet = pet.detach().requires_grad_(True)
+        ct = ct.detach().requires_grad_(True)
+        text = text.detach().requires_grad_(True)
+        
         print("PET input shape:", pet.shape)
         print("CT input shape:", ct.shape)
+        
         pet_features = self.mae.extract_features(pet)
         ct_features = self.mae.extract_features(ct)
 
@@ -121,13 +131,21 @@ class Trainer:
         self.warmup_epochs = warmup_epochs
         self.total_epochs = total_epochs
         self.scheduler = optim.lr_scheduler.LinearLR(optimizer, start_factor=0.01, total_iters=warmup_epochs)
+        
+        # Ensure all model parameters require gradients
+        for param in self.model.parameters():
+            param.requires_grad = True
 
     def train_one_epoch(self, epoch):
         self.model.train()
         epoch_loss = 0.0
 
         for pet, ct, text in self.dataloader:
-            pet, ct, text = pet.to(self.device), ct.to(self.device), text.to(self.device)
+            # Move to device and ensure gradients
+            pet = pet.to(self.device).requires_grad_(True)
+            ct = ct.to(self.device).requires_grad_(True)
+            text = text.to(self.device).requires_grad_(True)
+            
             self.optimizer.zero_grad()
             
             # Get predictions
@@ -144,8 +162,17 @@ class Trainer:
             if torch.isnan(loss):
                 print(f"Warning: NaN loss detected. Skipping batch.")
                 continue
+            
+            # Ensure loss requires grad
+            if not loss.requires_grad:
+                print("Warning: Loss doesn't require grad. Adding requires_grad=True")
+                loss.requires_grad_(True)
                 
             loss.backward()
+            
+            # Clip gradients to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            
             self.optimizer.step()
             epoch_loss += loss.item()
 
@@ -231,7 +258,7 @@ if __name__ == "__main__":
     fusion_model = CrossAttentionFusion(embed_dim=embed_dim, num_heads=num_heads)
 
 # Text Embedder
-    input_dim = 26  # Actual number of clinical features in the CSV
+    input_dim = 22  # Updated to match the actual number of clinical features in the CSV
     text_embedder = ClinicalTextEmbedder(input_dim=input_dim, embed_dim=embed_dim)
 
 # QFormer
