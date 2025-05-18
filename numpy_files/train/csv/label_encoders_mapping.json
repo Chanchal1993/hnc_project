@@ -1,0 +1,30 @@
+{
+    "Sex": {
+        "M": 0
+    },
+    "Primary Site": {
+        "Larynx": 0,
+        "Nasopharynx": 1
+    },
+    "T-stage": {
+        "T1": 0,
+        "T3": 1
+    },
+    "N-stage": {
+        "N0": 0,
+        "N1": 1
+    },
+    "M-stage": {
+        "M0": 0
+    },
+    "TNM group stage": {
+        "stage IIB": 0,
+        "stage III": 1
+    },
+    "HPV status": {
+        "-": 0
+    },
+    "Therapy": {
+        "chemo radiation": 0
+    }
+}
