@@ -9,6 +9,7 @@ from lifelines.utils import concordance_index
 from cox_survival_loss import survival_cox_sigmoid_loss
 from fusion_module import ClinicalTextEmbedder, CrossAttentionFusion, QFormer
 from masked_autoencoder_vit import MaskedAutoencoderViT, mae_vit_base_patch16
+from torchvision import transforms
 
 
 class MultimodalDataset(Dataset):
@@ -17,6 +18,7 @@ class MultimodalDataset(Dataset):
         self.ct_dir = ct_dir
         self.data = pd.read_csv(csv_path)
         self.transform = transform
+        self.resize = transforms.Resize((128, 128))
 
     def __len__(self):
         return len(self.data)
@@ -36,19 +38,40 @@ class MultimodalDataset(Dataset):
         ct_dir_path = os.path.join(self.ct_dir, patient_id)
 
         # Load slices and create 3D volume
-        pet_data = self.load_slices(pet_dir_path)
-        ct_data = self.load_slices(ct_dir_path)
+        pet_data = self.load_slices(pet_dir_path)  # [slices, height, width, 1]
+        ct_data = self.load_slices(ct_dir_path)    # [slices, height, width, 1]
+
+        # Use the middle slice for 2D input
+        mid_idx = pet_data.shape[0] // 2
+        pet_data = pet_data[mid_idx]  # shape: [height, width, 1]
+        ct_data = ct_data[mid_idx]    # shape: [height, width, 1]
+
+        # Move channel to second position for PyTorch
+        pet_data = np.transpose(pet_data, (2, 0, 1))  # [1, height, width]
+        ct_data = np.transpose(ct_data, (2, 0, 1))    # [1, height, width]
+
+        # Convert to torch tensors for resizing
+        pet_data = torch.from_numpy(pet_data).float()
+        ct_data = torch.from_numpy(ct_data).float()
+
+        # Resize to 128x128
+        pet_data = self.resize(pet_data)  # [1, 128, 128]
+        ct_data = self.resize(ct_data)    # [1, 128, 128]
 
         # Extract clinical text features
         text_features = row.drop(['Patient #']).values.astype(np.float32)
+        # Check for NaNs and replace with zero
+        if np.isnan(text_features).any():
+            print(f"Warning: NaNs found in clinical features for patient {patient_id}. Replacing with zeros.")
+            text_features = np.nan_to_num(text_features, nan=0.0)
 
         if self.transform:
             pet_data = self.transform(pet_data)
             ct_data = self.transform(ct_data)
 
         return (
-            torch.tensor(pet_data, dtype=torch.float32), 
-            torch.tensor(ct_data, dtype=torch.float32), 
+            pet_data,  # [1, 128, 128]
+            ct_data,   # [1, 128, 128]
             torch.tensor(text_features, dtype=torch.float32)
         )
 
@@ -60,6 +83,13 @@ class MultimodalModel(nn.Module):
         self.fusion = fusion_model
         self.text_embedder = text_embedder
         self.qformer = qformer
+        # Add a final prediction layer
+        self.prediction_head = nn.Sequential(
+            nn.Linear(768, 256),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(256, 1)
+        )
 
     def forward(self, pet, ct, text):
         print("PET input shape:", pet.shape)
@@ -70,9 +100,16 @@ class MultimodalModel(nn.Module):
         fused_features = self.fusion(pet_features, ct_features)
         embedded_text = self.text_embedder.get_embedded_text(text)
 
-        multimodal_features = self.qformer(fused_features, embedded_text)
+        print('Model: fused_features shape:', fused_features.shape)
+        print('Model: embedded_text shape:', embedded_text.shape)
 
-        return multimodal_features
+        multimodal_features = self.qformer(fused_features, embedded_text)
+        
+        # Take mean across sequence dimension and apply prediction head
+        pooled_features = multimodal_features.mean(dim=0)  # (batch_size, embed_dim)
+        predictions = self.prediction_head(pooled_features)  # (batch_size, 1)
+        
+        return predictions.squeeze(-1)  # (batch_size,)
 
 class Trainer:
     def __init__(self, model, dataloader, optimizer, criterion, device, warmup_epochs=10, total_epochs=300):
@@ -90,18 +127,26 @@ class Trainer:
         epoch_loss = 0.0
 
         for pet, ct, text in self.dataloader:
-            
             pet, ct, text = pet.to(self.device), ct.to(self.device), text.to(self.device)
             self.optimizer.zero_grad()
-            outputs = self.model(pet, ct, text)
-
-            # Assuming text contains time and event information
-            time = text[:, -2]
-            event = text[:, -1]
-            loss = self.criterion(outputs.squeeze(), time, event)
+            
+            # Get predictions
+            predictions = self.model(pet, ct, text)
+            
+            # Extract time and event information
+            time = text[:, -2]  # Time to event
+            event = text[:, -1]  # Event indicator
+            
+            # Calculate loss
+            loss = self.criterion(predictions, time, event)
+            
+            # Check for NaN loss
+            if torch.isnan(loss):
+                print(f"Warning: NaN loss detected. Skipping batch.")
+                continue
+                
             loss.backward()
             self.optimizer.step()
-
             epoch_loss += loss.item()
 
         # Warm-up learning rate adjustment
@@ -118,18 +163,23 @@ class Trainer:
         with torch.no_grad():
             for pet, ct, text in self.dataloader:
                 pet, ct, text = pet.to(self.device), ct.to(self.device), text.to(self.device)
-                outputs = self.model(pet, ct, text).squeeze().cpu().numpy()
-
+                predictions = self.model(pet, ct, text)
+                
                 times = text[:, -2].cpu().numpy()
                 events = text[:, -1].cpu().numpy()
+                preds = predictions.cpu().numpy()
 
-                all_preds.extend(outputs)
+                all_preds.extend(preds)
                 all_times.extend(times)
                 all_events.extend(events)
 
         all_preds = np.array(all_preds)
         all_times = np.array(all_times)
         all_events = np.array(all_events)
+
+        # Ensure all arrays have the same shape
+        assert len(all_preds) == len(all_times) == len(all_events), \
+            f"Shape mismatch: preds={len(all_preds)}, times={len(all_times)}, events={len(all_events)}"
 
         # Using negative predictions since higher values indicate higher risk
         c_index = concordance_index(all_times, -all_preds, all_events)
@@ -166,7 +216,7 @@ if __name__ == "__main__":
     fusion_model = CrossAttentionFusion(embed_dim=embed_dim, num_heads=num_heads)
 
 # Text Embedder
-    input_dim = 33  # Assuming 33 clinical features
+    input_dim = 26  # Actual number of clinical features in the CSV
     text_embedder = ClinicalTextEmbedder(input_dim=input_dim, embed_dim=embed_dim)
 
 # QFormer

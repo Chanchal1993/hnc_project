@@ -33,10 +33,12 @@ class CrossAttentionFusion(nn.Module):
         self.out_proj = nn.Linear(embed_dim, embed_dim)
 
     def forward(self, pet_features, ct_features):
-        Q = self.query_proj(ct_features)
-        K = self.key_proj(ct_features)
-        V = self.value_proj(pet_features)
+        # Ensure features are in the correct shape (seq_len, batch_size, embed_dim)
+        Q = self.query_proj(ct_features)  # (seq_len, batch_size, embed_dim)
+        K = self.key_proj(ct_features)    # (seq_len, batch_size, embed_dim)
+        V = self.value_proj(pet_features) # (seq_len, batch_size, embed_dim)
 
+        # Multihead attention expects (seq_len, batch_size, embed_dim)
         attn_output, _ = self.multihead_attn(Q, K, V)
         fused = self.out_proj(attn_output)
         return fused
@@ -57,10 +59,18 @@ class QFormer(nn.Module):
 
     def forward(self, fused_img_features, text_features):
         batch_size = fused_img_features.size(1)
-        queries = self.query_tokens.expand(-1, batch_size, -1)
+        queries = self.query_tokens.expand(-1, batch_size, -1)  # (num_queries, batch_size, embed_dim)
 
+        # Ensure text_features is in the correct shape (seq_len, batch_size, embed_dim)
+        if text_features.size(0) == 1:  # If text_features is (1, batch_size, embed_dim)
+            text_features = text_features.expand(queries.size(0), -1, -1)  # Expand to match query length
+
+        print('QFormer: queries shape:', queries.shape)
+        print('QFormer: fused_img_features shape:', fused_img_features.shape)
+        print('QFormer: text_features shape:', text_features.shape)
+
+        # Transformer decoder expects (seq_len, batch_size, embed_dim)
         multimodal_features = self.transformer_decoder(tgt=queries, memory=text_features)
-
         return multimodal_features
 
 # Example usage within fusion_module.py
